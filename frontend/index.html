@@ -43,6 +43,11 @@
               <span>Power</span>
               <strong id="power">None</strong>
             </div>
+            <div class="stat stat-connection" id="backendStatus" role="status" aria-live="polite" aria-label="백엔드 통신 상태" data-state="checking">
+              <span>Backend</span>
+              <strong id="backendStatusLabel">확인 중</strong>
+              <em id="backendStatusDetail">연결 상태를 확인 중입니다</em>
+            </div>
           </div>
         </header>
 
@@ -76,6 +81,8 @@
       </section>
     </main>
 
-    <script type="module" src="game.js"></script>
+    <script src="config.js"></script>
+    <script src="audio.js"></script>
+    <script src="game.js"></script>
   </body>
 </html>

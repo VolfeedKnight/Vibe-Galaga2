@@ -1,11 +1,13 @@
-export const WORLD = {
+(() => {
+const WORLD = {
   width: 840,
   height: 920,
 };
 
-export const STORAGE_KEY = "mini-galaga-best-score-v2";
+const STORAGE_KEY = "mini-galaga-best-score-v2";
+const SCORE_API_URL = "http://127.0.0.1:8001";
 
-export const enemyDefs = {
+const enemyDefs = {
   scout: {
     hp: 1,
     width: 36,
@@ -62,10 +64,19 @@ export const enemyDefs = {
   },
 };
 
-export const powerupDefs = {
+const powerupDefs = {
   shield: { label: "Shield", duration: 7.5, color: "#28d7ff" },
   rapid: { label: "Rapid", duration: 9.0, color: "#5ee6a8" },
   spread: { label: "Spread", duration: 8.5, color: "#f7c948" },
   score: { label: "Score x2", duration: 10.0, color: "#fb7185" },
   bomb: { label: "Bomb", duration: 0, color: "#c084fc" },
 };
+
+window.MiniGalagaConfig = {
+  WORLD,
+  STORAGE_KEY,
+  SCORE_API_URL,
+  enemyDefs,
+  powerupDefs,
+};
+})();

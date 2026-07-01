@@ -125,6 +125,39 @@ h1 {
   line-height: 1.4;
 }
 
+.stat em {
+  color: var(--muted);
+  display: block;
+  font-size: 0.7rem;
+  font-style: normal;
+  line-height: 1.2;
+  margin-top: 0.05rem;
+}
+
+.stat-connection[data-state="checking"] {
+  border-color: rgba(247, 201, 72, 0.35);
+}
+
+.stat-connection[data-state="checking"] strong {
+  color: var(--gold);
+}
+
+.stat-connection[data-state="connected"] {
+  border-color: rgba(94, 230, 168, 0.35);
+}
+
+.stat-connection[data-state="connected"] strong {
+  color: var(--green);
+}
+
+.stat-connection[data-state="disconnected"] {
+  border-color: rgba(251, 113, 133, 0.42);
+}
+
+.stat-connection[data-state="disconnected"] strong {
+  color: var(--rose);
+}
+
 .canvas-wrap {
   aspect-ratio: 840 / 920;
   background:
@@ -282,6 +315,10 @@ canvas {
 
   .stat strong {
     font-size: 1.2rem;
+  }
+
+  .stat em {
+    font-size: 0.65rem;
   }
 
   h1 {

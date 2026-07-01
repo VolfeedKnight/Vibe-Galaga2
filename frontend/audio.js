@@ -1,4 +1,5 @@
-export function createAudioController() {
+(() => {
+function createAudioController() {
   let ctx = null;
   let master = null;
   let musicStepTimer = 0;
@@ -102,3 +103,6 @@ export function createAudioController() {
     updateMusic,
   };
 }
+
+window.createAudioController = createAudioController;
+})();

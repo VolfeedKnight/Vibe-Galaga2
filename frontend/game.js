@@ -1,5 +1,11 @@
-import { WORLD, STORAGE_KEY, enemyDefs, powerupDefs } from "./config.js";
-import { createAudioController } from "./audio.js";
+(() => {
+const {
+  WORLD,
+  SCORE_API_URL,
+  STORAGE_KEY,
+  enemyDefs,
+  powerupDefs,
+} = window.MiniGalagaConfig;
 
 const audio = createAudioController();
 const canvas = document.getElementById("gameCanvas");
@@ -12,6 +18,9 @@ const stageEl = document.getElementById("stage");
 const waveEl = document.getElementById("wave");
 const comboEl = document.getElementById("combo");
 const powerEl = document.getElementById("power");
+const backendStatusEl = document.getElementById("backendStatus");
+const backendStatusLabelEl = document.getElementById("backendStatusLabel");
+const backendStatusDetailEl = document.getElementById("backendStatusDetail");
 const overlay = document.getElementById("overlay");
 const stateLabel = document.getElementById("stateLabel");
 const stateTitle = document.getElementById("stateTitle");
@@ -68,6 +77,28 @@ let rapidTimer = 0;
 let spreadTimer = 0;
 let shieldTimer = 0;
 let powerName = "None";
+let scoreSubmitted = false;
+let backendHealthCheckPromise = null;
+let backendHealthCheckTimer = 0;
+let backendStatusState = "";
+
+const backendStatusCopy = {
+  checking: {
+    label: "확인 중",
+    detail: "연결 상태를 확인 중입니다",
+  },
+  connected: {
+    label: "통신 중",
+    detail: "백엔드와 통신 중입니다",
+  },
+  disconnected: {
+    label: "통신 안 됨",
+    detail: "백엔드에 연결할 수 없습니다",
+  },
+};
+
+const BACKEND_HEALTH_INTERVAL_MS = 5000;
+const BACKEND_HEALTH_TIMEOUT_MS = 2500;
 
 function ensureAudio() {
   return audio.ensure();
@@ -255,6 +286,79 @@ function updateHud() {
   powerEl.textContent = powerName;
 }
 
+function setBackendStatus(state, detail) {
+  const nextState = backendStatusCopy[state] ? state : "disconnected";
+  const nextCopy = backendStatusCopy[nextState];
+  const nextDetail = detail || nextCopy.detail;
+
+  if (
+    backendStatusState === nextState &&
+    backendStatusDetailEl?.textContent === nextDetail
+  ) {
+    return;
+  }
+
+  backendStatusState = nextState;
+
+  if (!backendStatusEl || !backendStatusLabelEl || !backendStatusDetailEl) {
+    return;
+  }
+
+  backendStatusEl.dataset.state = nextState;
+  backendStatusEl.setAttribute("aria-busy", nextState === "checking" ? "true" : "false");
+  backendStatusEl.title = nextDetail;
+  backendStatusLabelEl.textContent = nextCopy.label;
+  backendStatusDetailEl.textContent = nextDetail;
+}
+
+async function checkBackendHealth() {
+  if (backendHealthCheckPromise) {
+    return backendHealthCheckPromise;
+  }
+
+  backendHealthCheckPromise = (async () => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), BACKEND_HEALTH_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(`${SCORE_API_URL}/health`, {
+        cache: "no-store",
+        method: "GET",
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Health check failed: ${response.status}`);
+      }
+
+      setBackendStatus("connected", "백엔드와 통신 중입니다");
+    } catch (error) {
+      if (controller.signal.aborted) {
+        setBackendStatus("disconnected", "백엔드 응답 시간이 초과되었습니다");
+      } else {
+        setBackendStatus("disconnected", "백엔드에 연결할 수 없습니다");
+      }
+    } finally {
+      window.clearTimeout(timeoutId);
+      backendHealthCheckPromise = null;
+    }
+  })();
+
+  return backendHealthCheckPromise;
+}
+
+function startBackendHealthMonitoring() {
+  if (backendHealthCheckTimer) {
+    window.clearInterval(backendHealthCheckTimer);
+  }
+
+  setBackendStatus("checking", "연결 상태를 확인 중입니다");
+  void checkBackendHealth();
+  backendHealthCheckTimer = window.setInterval(() => {
+    void checkBackendHealth();
+  }, BACKEND_HEALTH_INTERVAL_MS);
+}
+
 function setBestScore(value) {
   if (value <= bestScore) {
     return;
@@ -314,6 +418,7 @@ function resetGame() {
   activeTouches.left = false;
   activeTouches.right = false;
   activeTouches.shoot = false;
+  scoreSubmitted = false;
   spawnWave();
   updateHud();
 }
@@ -363,9 +468,6 @@ function spawnExplosion(x, y, color, count = 18, spread = 170) {
 function addScore(points) {
   const multiplier = comboMultiplier * (scoreBoostTimer > 0 ? 2 : 1);
   score += Math.round(points * multiplier);
-  if (score > bestScore) {
-    setBestScore(score);
-  }
   updateHud();
 }
 
@@ -628,6 +730,41 @@ function damagePlayer() {
   }
 }
 
+function buildScorePayload() {
+  return {
+    player_name: "guest",
+    score,
+    stage,
+    wave,
+  };
+}
+
+async function submitScoreToBackend() {
+  if (scoreSubmitted) {
+    return;
+  }
+
+  scoreSubmitted = true;
+
+  try {
+    const response = await fetch(`${SCORE_API_URL}/scores`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildScorePayload()),
+    });
+
+    if (response.ok) {
+      setBackendStatus("connected", "점수가 백엔드에 전송되었습니다");
+    } else {
+      setBackendStatus("connected", `백엔드 응답 ${response.status}를 받았습니다`);
+    }
+  } catch {
+    setBackendStatus("disconnected", "점수 전송에 실패했습니다");
+  }
+}
+
 function gameOver() {
   state = "gameover";
   setBestScore(score);
@@ -638,6 +775,7 @@ function gameOver() {
     `Final score: ${score}. Best score: ${bestScore}. Press Enter or Restart to try again.`,
     "Restart",
   );
+  void submitScoreToBackend();
 }
 
 function pauseGame() {
@@ -975,9 +1113,6 @@ function update(dt) {
   updateParticles(dt);
   updateHud();
 
-  if (score > bestScore) {
-    setBestScore(score);
-  }
 }
 
 function drawBackground() {
@@ -1506,6 +1641,7 @@ function initializeState() {
     "Start",
   );
   updateTouchButtons();
+  startBackendHealthMonitoring();
 }
 
 window.addEventListener("keydown", handleKeyDown);
@@ -1532,3 +1668,4 @@ startButton.addEventListener("click", () => {
 bindTouchControls();
 initializeState();
 requestAnimationFrame(loop);
+})();
